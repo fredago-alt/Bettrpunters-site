@@ -1,0 +1,103 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bettr Punters Record</title>
+<meta name="description" content="Bettr Punters — every betting pick tracked, graded and shown. Live ROI and results.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root{--navy:#0b1a2b;--navy2:#11263c;--panel:#132c46;--line:#1e3a58;--ink:#eaf1f7;--mut:#8ba6c1;--emerald:#2ee686;--red:#f0616a;--gold:#f6c453;--shadow:0 18px 46px rgba(0,0,0,.42)}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:radial-gradient(1100px 620px at 78% -10%,rgba(46,230,134,.10),transparent 60%),radial-gradient(900px 520px at 8% 0%,rgba(31,158,95,.08),transparent 55%),linear-gradient(180deg,var(--navy),#081420 78%);color:var(--ink);font-family:"Manrope",system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.55;min-height:100vh}
+.wrap{max-width:960px;margin:0 auto;padding:clamp(20px,4vw,44px)}
+.eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.74rem;letter-spacing:.28em;text-transform:uppercase;color:var(--emerald);margin:0 0 14px}
+h1,h2,h3{font-family:"Archivo","Arial Narrow",sans-serif;text-wrap:balance;margin:0}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:clamp(26px,5vw,48px)}
+.brand .mark{font-family:"Archivo";font-weight:900;letter-spacing:.02em;font-size:1.15rem}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:var(--emerald);box-shadow:0 0 14px var(--emerald)}
+.brand .tag{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--mut);letter-spacing:.14em}
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(20px,4vw,40px);align-items:center}
+@media(max-width:720px){.hero{grid-template-columns:1fr}}
+h1{font-weight:900;font-size:clamp(2.1rem,6vw,3.4rem);line-height:1.02;letter-spacing:-.01em}
+h1 .u{color:var(--emerald)}
+.lede{color:var(--mut);font-size:1.05rem;margin:16px 0 24px;max-width:46ch}
+.roi-card{background:linear-gradient(160deg,var(--panel),var(--navy2));border:1px solid var(--line);border-radius:22px;padding:clamp(22px,4vw,32px);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.roi-card .lbl{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--mut)}
+.roi-big{font-family:"Archivo";font-weight:900;font-size:clamp(3.4rem,12vw,5.2rem);line-height:.94;color:var(--emerald);letter-spacing:-.02em;margin:.12em 0 .02em}
+.roi-sub{font-family:"IBM Plex Mono",monospace;color:var(--emerald);font-weight:600}
+.spark{margin-top:18px;width:100%;height:74px;display:block}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:clamp(26px,5vw,42px) 0}
+@media(max-width:560px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tile{background:var(--navy2);border:1px solid var(--line);border-radius:16px;padding:18px 16px}
+.tile .v{font-family:"Archivo";font-weight:800;font-size:1.9rem;font-variant-numeric:tabular-nums}
+.tile .k{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin-top:4px}
+section{margin:clamp(30px,6vw,52px) 0}
+h2{font-weight:800;font-size:clamp(1.3rem,3.4vw,1.7rem)}
+.sec-note{color:var(--mut);font-size:.92rem;margin-top:6px}
+.table-wrap{overflow-x:auto;margin-top:18px;border:1px solid var(--line);border-radius:16px}
+table{width:100%;border-collapse:collapse;min-width:520px}
+th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);font-weight:600;background:var(--navy2)}
+td.sel{white-space:normal;font-weight:600;min-width:230px}
+tr:last-child td{border-bottom:none}
+.sport{font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--mut);letter-spacing:.08em}
+.odds,.ret{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:.7rem;font-weight:600;letter-spacing:.06em;padding:4px 9px;border-radius:999px}
+.won{background:rgba(46,230,134,.14);color:var(--emerald)}
+.lost{background:rgba(240,97,106,.14);color:var(--red)}
+.ret.pos{color:var(--emerald)}.ret.neg{color:var(--red)}
+.why{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+@media(max-width:640px){.why{grid-template-columns:1fr}}
+.why .item{background:var(--navy2);border:1px solid var(--line);border-radius:14px;padding:18px}
+.why h3{font-family:"Archivo";font-weight:800;font-size:1.02rem;margin-bottom:6px}
+.why p{margin:0;color:var(--mut);font-size:.9rem}
+.cta{background:linear-gradient(155deg,var(--panel),var(--navy2));border:1px solid var(--line);border-radius:22px;padding:clamp(26px,5vw,40px);text-align:center;box-shadow:var(--shadow)}
+.cta h2{font-size:clamp(1.5rem,4vw,2.1rem)}
+.cta p{color:var(--mut);max-width:48ch;margin:12px auto 22px}
+.btn{display:inline-block;background:var(--emerald);color:#062015;font-family:"Archivo";font-weight:800;font-size:1.05rem;letter-spacing:.01em;text-decoration:none;padding:15px 34px;border-radius:999px;box-shadow:0 10px 26px rgba(46,230,134,.32);transition:transform .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(46,230,134,.42)}
+.btn:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.cta .free{margin-top:14px;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--mut)}
+footer{border-top:1px solid var(--line);margin-top:clamp(30px,6vw,52px);padding-top:22px;color:var(--mut);font-size:.8rem}
+footer .rg{color:var(--gold);font-weight:600}footer p{margin:6px 0}
+@media(prefers-reduced-motion:reduce){.btn{transition:none}}
+</style></head><body>
+<div class="wrap">
+<div class="brand"><span class="dot"></span><span class="mark">BETTR PUNTERS</span><span class="tag">TRACKED &middot; TRANSPARENT</span></div>
+<div class="hero">
+<div><p class="eyebrow">Verified betting record</p>
+<h1>Every pick <span class="u">tracked</span>, graded, and shown &mdash; win or lose.</h1>
+<p class="lede">No cherry-picked screenshots. Each selection is logged the moment it's issued, at the odds we took, then auto-graded against the real result. This is the whole ledger.</p></div>
+<div class="roi-card"><div class="lbl">Return on investment</div>
+<div class="roi-big">+115.8%</div>
+<div class="roi-sub">+20.85 units &middot; 18 settled picks</div>
+<svg class="spark" id="spark" viewBox="0 0 560 74" preserveAspectRatio="none" aria-label="Cumulative units, recent settled picks"></svg></div></div>
+<div class="tiles">
+<div class="tile"><div class="v">18</div><div class="k">Settled picks</div></div>
+<div class="tile"><div class="v">12–6</div><div class="k">Won&ndash;Lost</div></div>
+<div class="tile"><div class="v">66.7%</div><div class="k">Hit rate</div></div>
+<div class="tile"><div class="v" style="color:var(--emerald)">+20.85u</div><div class="k">Units profit</div></div></div>
+<section><h2>Recent results</h2>
+<p class="sec-note">Newest first. Units are % of a 100-unit bank (1u = 1%). Losses shown in full.</p>
+<div class="table-wrap"><table><thead><tr><th>Selection</th><th>Sport</th><th class="odds">Odds</th><th>Result</th><th class="ret">Return</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+<section><h2>Why this record is different</h2><div class="why">
+<div class="item"><h3>Logged before the game</h3><p>Picks are written to the ledger when issued, at the exact odds available &mdash; not typed up after the result is known.</p></div>
+<div class="item"><h3>Auto-graded</h3><p>Results are settled automatically against real match data. The ROI on this page comes straight from that file.</p></div>
+<div class="item"><h3>Losses included</h3><p>Every losing bet stays on the record. A real edge shows over hundreds of picks, not a hot streak.</p></div></div></section>
+<section class="cta"><p class="eyebrow" style="margin-bottom:10px">Bettr Punters VIP</p>
+<h2>Get the full daily board.</h2>
+<p>All value singles, multis and player props across AFL, NRL, NFL, MLB &amp; more &mdash; posted to the members' channel the moment our models flag them, with staking on every pick.</p>
+<a class="btn" href="https://whop.com/bettrpunters/products/bettr-punting-discord-access/" target="_blank" rel="noopener">Join VIP &rarr;</a>
+<p class="free">Not ready? A free pick drops daily in the public channel.</p></section>
+<footer><p><span class="rg">18+ only. Gamble responsibly.</span> Gambling Help Online 1800 858 858 (AU) &middot; gamblinghelponline.org.au</p>
+<p>Selections are opinions based on statistical models &mdash; not financial advice and not a guarantee of profit. Past performance does not guarantee future results. Record updated 14 Sep 2026 (18 settled picks).</p></footer></div>
+<script>
+const rows=[["Seattle Mariners to win", "MLB", "3.00", "LOST", "-1.00"], ["Texas Rangers to win", "MLB", "2.16", "LOST", "-1.00"], ["Sydney Roosters +9.5", "NRL", "2.00", "WON", "+1.00"], ["Lachlan McAndrew to score a goal", "AFL", "4.40", "WON", "+3.40"], ["Alex Neal-Bullen to score a goal", "AFL", "3.05", "LOST", "-1.00"], ["Will Ashcroft to score a goal", "AFL", "2.40", "WON", "+1.40"], ["Cronulla Sutherland Sharks -8.5", "NRL", "2.00", "LOST", "-1.00"], ["South Sydney Rabbitohs to win", "NRL", "2.08", "WON", "+1.08"], ["Wests Tigers to win", "NRL", "2.82", "WON", "+1.82"], ["Bradley Hill to score a goal", "AFL", "4.00", "WON", "+3.00"], ["George Hewett to score a goal", "AFL", "2.40", "LOST", "-1.00"], ["Sam Swadling to score a goal", "AFL", "3.05", "WON", "+2.05"]];
+document.getElementById("rows").innerHTML=rows.map(r=>{const won=r[3]==="WON";const pos=parseFloat(r[4])>=0;
+return `<tr><td class="sel">${r[0]}</td><td class="sport">${r[1]}</td><td class="odds">${r[2]}</td><td><span class="pill ${won?'won':'lost'}">${won?'● WON':'○ LOST'}</span></td><td class="ret ${pos?'pos':'neg'}">${r[4]}u</td></tr>`;}).join("");
+const chrono=[2.05, -1.0, 3.0, 1.82, 1.08, -1.0, 1.4, -1.0, 3.4, 1.0, -1.0, -1.0];let c=0;const cum=chrono.map(v=>(c+=v));
+const W=560,H=74,pad=6,n=cum.length;const lo=Math.min(0,...cum),hi=Math.max(...cum,0.01);
+const x=i=>pad+i*(W-2*pad)/((n-1)||1);const y=v=>H-pad-(v-lo)*(H-2*pad)/((hi-lo)||1);
+const line=cum.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+const area=`${line} L${x(n-1).toFixed(1)},${(H-pad).toFixed(1)} L${x(0).toFixed(1)},${(H-pad).toFixed(1)} Z`;
+document.getElementById("spark").innerHTML=`<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2ee686" stop-opacity=".34"/><stop offset="1" stop-color="#2ee686" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#g)"/><path d="${line}" fill="none" stroke="#2ee686" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${x(n-1).toFixed(1)}" cy="${y(cum[n-1]).toFixed(1)}" r="3.6" fill="#2ee686"/>`;
+</script></body></html>
