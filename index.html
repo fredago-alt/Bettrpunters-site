@@ -68,14 +68,14 @@ footer .rg{color:var(--gold);font-weight:600}footer p{margin:6px 0}
 <h1>Every pick <span class="u">tracked</span>, graded, and shown &mdash; win or lose.</h1>
 <p class="lede">No cherry-picked screenshots. Each selection is logged the moment it's issued, at the odds we took, then auto-graded against the real result. This is the whole ledger.</p></div>
 <div class="roi-card"><div class="lbl">Return on investment</div>
-<div class="roi-big">+119.2%</div>
-<div class="roi-sub">+27.41 units &middot; 23 settled picks</div>
+<div class="roi-big">+122.0%</div>
+<div class="roi-sub">+30.49 units &middot; 25 settled picks</div>
 <svg class="spark" id="spark" viewBox="0 0 560 74" preserveAspectRatio="none" aria-label="Cumulative units, recent settled picks"></svg></div></div>
 <div class="tiles">
-<div class="tile"><div class="v">23</div><div class="k">Settled picks</div></div>
-<div class="tile"><div class="v">17–6</div><div class="k">Won&ndash;Lost</div></div>
-<div class="tile"><div class="v">73.9%</div><div class="k">Hit rate</div></div>
-<div class="tile"><div class="v" style="color:var(--emerald)">+27.41u</div><div class="k">Units profit</div></div></div>
+<div class="tile"><div class="v">25</div><div class="k">Settled picks</div></div>
+<div class="tile"><div class="v">19–6</div><div class="k">Won&ndash;Lost</div></div>
+<div class="tile"><div class="v">76.0%</div><div class="k">Hit rate</div></div>
+<div class="tile"><div class="v" style="color:var(--emerald)">+30.49u</div><div class="k">Units profit</div></div></div>
 <section><h2>Recent results</h2>
 <p class="sec-note">Newest first. Units are % of a 100-unit bank (1u = 1%). Losses shown in full.</p>
 <div class="table-wrap"><table><thead><tr><th>Selection</th><th>Sport</th><th class="odds">Odds</th><th>Result</th><th class="ret">Return</th></tr></thead><tbody id="rows"></tbody></table></div></section>
@@ -89,12 +89,12 @@ footer .rg{color:var(--gold);font-weight:600}footer p{margin:6px 0}
 <a class="btn" href="https://whop.com/bettrpunters/products/bettr-punting-discord-access/" target="_blank" rel="noopener">Join VIP &rarr;</a>
 <p class="free">Not ready? A free pick drops daily in the public channel.</p></section>
 <footer><p><span class="rg">18+ only. Gamble responsibly.</span> Gambling Help Online 1800 858 858 (AU) &middot; gamblinghelponline.org.au</p>
-<p>Selections are opinions based on statistical models &mdash; not financial advice and not a guarantee of profit. Past performance does not guarantee future results. Record updated 17 Sep 2026 (23 settled picks).</p></footer></div>
+<p>Selections are opinions based on statistical models &mdash; not financial advice and not a guarantee of profit. Past performance does not guarantee future results. Record updated 18 Sep 2026 (25 settled picks).</p></footer></div>
 <script>
-const rows=[["Shai Bolton to score a goal", "AFL", "1.70", "WON", "+0.70"], ["Jake Lloyd to score a goal", "AFL", "4.00", "WON", "+3.00"], ["New Zealand Warriors to win", "NRL", "1.56", "WON", "+0.56"], ["New York Yankees -1.5", "MLB", "2.45", "WON", "+1.45"], ["New York Yankees to win", "MLB", "1.85", "WON", "+0.85"], ["Seattle Mariners to win", "MLB", "3.00", "LOST", "-1.00"], ["Texas Rangers to win", "MLB", "2.16", "LOST", "-1.00"], ["Sydney Roosters +9.5", "NRL", "2.00", "WON", "+1.00"], ["Lachlan McAndrew to score a goal", "AFL", "4.40", "WON", "+3.40"], ["Alex Neal-Bullen to score a goal", "AFL", "3.05", "LOST", "-1.00"], ["Will Ashcroft to score a goal", "AFL", "2.40", "WON", "+1.40"], ["Cronulla Sutherland Sharks -8.5", "NRL", "2.00", "LOST", "-1.00"]];
+const rows=[["Lloyd Meek Over 10.5 disposals", "AFL", "1.83", "WON", "+0.83"], ["Will Ashcroft to score a goal", "AFL", "3.25", "WON", "+2.25"], ["Shai Bolton to score a goal", "AFL", "1.70", "WON", "+0.70"], ["Jake Lloyd to score a goal", "AFL", "4.00", "WON", "+3.00"], ["New Zealand Warriors to win", "NRL", "1.56", "WON", "+0.56"], ["New York Yankees -1.5", "MLB", "2.45", "WON", "+1.45"], ["New York Yankees to win", "MLB", "1.85", "WON", "+0.85"], ["Seattle Mariners to win", "MLB", "3.00", "LOST", "-1.00"], ["Texas Rangers to win", "MLB", "2.16", "LOST", "-1.00"], ["Sydney Roosters +9.5", "NRL", "2.00", "WON", "+1.00"], ["Lachlan McAndrew to score a goal", "AFL", "4.40", "WON", "+3.40"], ["Alex Neal-Bullen to score a goal", "AFL", "3.05", "LOST", "-1.00"]];
 document.getElementById("rows").innerHTML=rows.map(r=>{const won=r[3]==="WON";const pos=parseFloat(r[4])>=0;
 return `<tr><td class="sel">${r[0]}</td><td class="sport">${r[1]}</td><td class="odds">${r[2]}</td><td><span class="pill ${won?'won':'lost'}">${won?'● WON':'○ LOST'}</span></td><td class="ret ${pos?'pos':'neg'}">${r[4]}u</td></tr>`;}).join("");
-const chrono=[-1.0, 1.4, -1.0, 3.4, 1.0, -1.0, -1.0, 0.85, 1.45, 0.56, 3.0, 0.7];let c=0;const cum=chrono.map(v=>(c+=v));
+const chrono=[-1.0, 3.4, 1.0, -1.0, -1.0, 0.85, 1.45, 0.56, 3.0, 0.7, 2.25, 0.83];let c=0;const cum=chrono.map(v=>(c+=v));
 const W=560,H=74,pad=6,n=cum.length;const lo=Math.min(0,...cum),hi=Math.max(...cum,0.01);
 const x=i=>pad+i*(W-2*pad)/((n-1)||1);const y=v=>H-pad-(v-lo)*(H-2*pad)/((hi-lo)||1);
 const line=cum.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
