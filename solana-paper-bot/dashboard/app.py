@@ -179,7 +179,27 @@ with st.expander("Data ingestion"):
                       "ORDER BY id DESC LIMIT 200"), "observed_at", "pair_created_at"),
                  use_container_width=True, hide_index=True)
 
+is_sniper = conn.execute("SELECT COUNT(*) FROM pump_tokens").fetchone()[0] > 0 if conn.execute(
+    "SELECT 1 FROM sqlite_master WHERE name='pump_tokens'").fetchone() else False
+if is_sniper:
+    with st.expander("pump.fun sniper data"):
+        st.write(pd.DataFrame(conn.execute("SELECT status, COUNT(*) FROM pump_tokens GROUP BY 1").fetchall(),
+                              columns=["status", "tokens"]))
+        st.dataframe(ts(q("SELECT seen_at, symbol, mint, status, rejection, creator_fee_bps, mayhem "
+                          "FROM pump_tokens ORDER BY seen_at DESC LIMIT 200"), "seen_at"),
+                     use_container_width=True, hide_index=True)
+
 with st.expander("Labelled assumptions (costs, latency, fills, FX)", expanded=True):
-    for k, v in settings.assumptions().items():
+    assumptions = settings.assumptions()
+    if run_id != "live":
+        try:
+            from paperbot.sniper.config import SniperSettings
+
+            sn = SniperSettings.from_env()
+            if run_id == sn.run_id:
+                assumptions = {**sn.assumptions(), "FX": settings.assumptions()["FX"]}
+        except ConfigError:
+            pass
+    for k, v in assumptions.items():
         st.markdown(f"- **{k}:** {v}")
     st.caption("These are placeholders to be stress-tested (see `python -m paperbot scenarios`), not measurements.")

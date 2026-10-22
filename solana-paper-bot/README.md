@@ -155,6 +155,52 @@ each token traded at most once per run.
 
 ---
 
+## pump.fun sniper simulation (`python -m paperbot sniper`)
+
+A second, separate **paper** strategy that watches pump.fun directly on-chain instead of
+through DEX Screener, so it reacts within about a second of a token launching.
+
+* **Data:** a read-only Solana `logsSubscribe` stream of pump.fun program logs, decoded
+  with the field layouts from pump.fun's published IDL. Only events emitted by the pump.fun
+  program are accepted. Open positions are also re-read every 2 s with
+  `getMultipleAccounts`, independent of the stream. The RPC client refuses any method
+  outside a read-only allow-list.
+* **Verified:** on real mainnet trades the bonding-curve maths reproduces the on-chain
+  token/SOL amounts exactly for standard SOL-quoted curves. **Mayhem-mode** and
+  **non-SOL-quoted** curves don't follow it, so they are skipped and recorded with a reason.
+* **Entry (hypotheses):** token 3–90 s old (since we saw its create event), ≥ 10 buys from
+  ≥ 8 distinct wallets, ≥ 3 SOL net inflow excluding the creator, buys/sells ≥ 2,
+  creator bought ≤ 2 SOL and has not sold, curve < 70% complete.
+* **Exits (hypotheses):** +30% / −15% on after-fee sale value, 120 s max hold, creator sells,
+  or curve completes (sold at last curve reserves, an assumption).
+* **Fills:** 500 ms latency, then priced against the *then-current* reserves with exact curve
+  impact. The per-token fee (0.95% protocol + creator fee, read from chain events) is
+  added on buys and deducted on sells, plus 0.000105 SOL network/priority fee per transaction
+  (placeholder). 15% of entries and 5% of exits fail at random (assumptions).
+* **Account:** its own virtual A$50 under run id `sniper`, the same sizing rules, shown in the
+  dashboard's run selector. SOL/USD comes from the deepest SOL/USDC or SOL/USDT pair on DEX
+  Screener; with no SOL price it doesn't trade.
+* **Storage:** every launch seen goes in `pump_tokens` (with its rejection reason); 5-second
+  activity bars for young or held tokens go in the append-only `pump_bars`.
+
+```bash
+.venv/bin/python -m paperbot sniper-check --seconds 30   # is the stream reachable? counts decoded events
+.venv/bin/python -m paperbot sniper                      # run the simulation (Ctrl-C to stop)
+.venv/bin/python -m paperbot report --run-id sniper
+```
+To have the auto-restart watchdog run it too, set `SNIPER_ENABLED=true` in `.env`.
+
+**Reality check.** Real snipers land in the same block as the launch, using paid
+priority fees and bundles. This simulation enters about 3 s after launch, after the
+fastest bots, and assumes a modest priority fee. Its results describe what a *slower*
+participant would have got, under labelled assumptions. They are not evidence that real
+sniping is profitable. In a 4-minute live test about 9 tokens launched per minute, and
+roughly a third were skipped as unmodellable types.
+
+The public RPC endpoint can throttle or refuse log subscriptions. If `sniper-check` shows no
+messages, get a free RPC key (e.g. Helius) and set `SNIPER_RPC_HTTP_URL` / `SNIPER_RPC_WS_URL`.
+An RPC key only reads data; it is not a wallet key.
+
 ## Evaluation protocol
 
 1. `pytest` — all tests green.

@@ -11,11 +11,12 @@ from paperbot.store import insert_observation, record_discovery
 
 def test_migrations_apply_once_and_are_idempotent(tmp_path):
     conn = connect(str(tmp_path / "a.db"))
-    assert migrate(conn) == ["001_initial"]
+    assert migrate(conn) == ["001_initial", "002_sniper"]
     assert migrate(conn) == []
-    assert current_version(conn) == 1
+    assert current_version(conn) == 2
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert {"observations", "positions", "account", "order_events", "filter_decisions", "tokens"} <= tables
+    assert {"observations", "positions", "account", "order_events", "filter_decisions", "tokens",
+            "pump_tokens", "pump_bars"} <= tables
 
 
 def test_observations_are_immutable():

@@ -153,6 +153,51 @@ def cmd_scenarios(s, args) -> int:
     return 0
 
 
+def _sniper_settings():
+    from .sniper.config import SniperSettings
+
+    return SniperSettings.from_env()
+
+
+def cmd_sniper(s, args) -> int:
+    import asyncio
+    import random
+
+    from .sniper.engine import SniperEngine
+    from .sniper.pumpfun import PUMP_PROGRAM
+    from .sniper.rpc import LogStream, ReadOnlyRpc, redact
+    from .sniper.runner import SolPrice, run
+
+    ss = _sniper_settings()
+    conn = open_db(s.db_path)
+    ensure_run(conn, ss.run_id, "live", ss)
+    sol = SolPrice(DexScreenerClient.from_settings(s))
+    engine = SniperEngine(conn, ss, make_fx(s), sol, rng=random.Random(ss.random_seed))
+    print(f"pump.fun sniper SIMULATION run={ss.run_id} rules={ss.rules_fingerprint()} rpc={redact(ss.rpc_ws_url)}")
+    try:
+        asyncio.run(run(engine, ss, LogStream(ss.rpc_ws_url, PUMP_PROGRAM, ss.stream_idle_reconnect_seconds),
+                        ReadOnlyRpc(ss.rpc_http_url), sol, max_seconds=args.seconds))
+    except KeyboardInterrupt:
+        pass
+    print(format_report(compute(conn, ss.run_id), "Sniper paper run"))
+    return 0
+
+
+def cmd_sniper_check(s, args) -> int:
+    import asyncio
+
+    from .sniper.runner import check_stream
+
+    ss = _sniper_settings()
+    counts = asyncio.run(check_stream(ss, args.seconds))
+    print(json.dumps(counts, indent=2))
+    if counts["messages"] == 0:
+        print("No messages received: check SNIPER_RPC_WS_URL / network. The public endpoint may refuse "
+              "or throttle subscriptions; a free Helius or QuickNode key usually fixes this.")
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="paperbot", description=BANNER)
     p.add_argument("--env-file", default=".env")
@@ -184,6 +229,10 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "scenarios":
             sp.add_argument("--fees", default="0.25,0.5,1.0,2.0")
             sp.add_argument("--slippages", default="0.5,1.5,3.0,5.0")
+    sp = sub.add_parser("sniper", help="pump.fun on-chain sniper SIMULATION (paper only)")
+    sp.add_argument("--seconds", type=float, default=None, help="stop after this many seconds")
+    sp = sub.add_parser("sniper-check", help="connect to the Solana log stream and count decoded events")
+    sp.add_argument("--seconds", type=float, default=30.0)
     sp = sub.add_parser("freeze", help="freeze current strategy rules for out-of-sample testing")
     sp.add_argument("--out", default="frozen_rules.json")
     return p
@@ -193,6 +242,7 @@ COMMANDS = {
     "check-config": cmd_check_config, "init-db": cmd_init_db, "scan": cmd_scan,
     "validate-ingestion": cmd_validate_ingestion, "report": cmd_report, "replay": cmd_replay,
     "split-test": cmd_split_test, "freeze": cmd_freeze, "oos": cmd_oos, "scenarios": cmd_scenarios,
+    "sniper": cmd_sniper, "sniper-check": cmd_sniper_check,
 }
 
 

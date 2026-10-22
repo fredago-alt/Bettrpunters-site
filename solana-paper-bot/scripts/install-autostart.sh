@@ -57,5 +57,6 @@ nohup "$KEEP" --loop >/dev/null 2>&1 < /dev/null &
 sleep 3
 echo
 echo "Scanner running:   $(pgrep -fc 'python -m paperbot scan')"
+echo "Sniper running:    $(pgrep -fc 'python -m paperbot sniper')  (only if SNIPER_ENABLED=true in .env)"
 echo "Dashboard running: $(pgrep -fc 'streamlit run dashboard/app.py')"
 echo "Restart log:       $DIR/data/keepalive.log"

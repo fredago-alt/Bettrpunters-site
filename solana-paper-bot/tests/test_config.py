@@ -71,6 +71,6 @@ def test_every_cost_assumption_is_labelled():
 
 def test_env_example_is_valid_and_matches_defaults():
     env = dotenv_values(Path(__file__).resolve().parents[1] / ".env.example")
-    documented = {k[len("PAPERBOT_"):].lower() for k in env}
+    documented = {k[len("PAPERBOT_"):].lower() for k in env if k.startswith("PAPERBOT_")}
     assert documented == {f.name for f in fields(Settings)}, "every setting must be documented in .env.example"
     assert Settings.from_env(env) == Settings()
