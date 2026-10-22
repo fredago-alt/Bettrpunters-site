@@ -1,0 +1,6 @@
+[server]
+# Skip the first-run email prompt, which crashes Streamlit under nohup/systemd.
+headless = true
+
+[browser]
+gatherUsageStats = false

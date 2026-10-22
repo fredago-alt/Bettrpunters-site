@@ -49,7 +49,8 @@ cp .env.example .env            # edit if you want to change any setting
 #    as a service:      see paperbot.service.example
 
 # 3. Dashboard (in a second terminal)
-.venv/bin/streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
+.venv/bin/streamlit run dashboard/app.py --server.headless true --server.port 8501
+#    in the background: nohup .venv/bin/streamlit run dashboard/app.py --server.headless true --server.port 8501 >> data/dashboard.log 2>&1 &
 #    then open http://<vm-ip>:8501  (or tunnel: ssh -L 8501:localhost:8501 <vm>)
 
 # 4. Reports / replay / out-of-sample
