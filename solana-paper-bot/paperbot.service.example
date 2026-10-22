@@ -1,0 +1,19 @@
+# systemd unit for a multi-week live PAPER TRADING data run.
+# Edit User and paths, then:
+#   sudo cp paperbot.service.example /etc/systemd/system/paperbot.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now paperbot
+#   journalctl -u paperbot -f
+[Unit]
+Description=Solana meme-coin PAPER TRADING scanner (simulation only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=paperbot
+WorkingDirectory=/opt/solana-paper-bot
+ExecStart=/opt/solana-paper-bot/.venv/bin/python -m paperbot scan
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

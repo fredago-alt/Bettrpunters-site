@@ -1,0 +1,7 @@
+# Runtime
+requests>=2.31,<3
+python-dotenv>=1.0,<2
+pandas>=2.1
+streamlit>=1.32
+# Tests
+pytest>=8.0
