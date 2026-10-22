@@ -74,3 +74,19 @@ def test_env_example_is_valid_and_matches_defaults():
     documented = {k[len("PAPERBOT_"):].lower() for k in env if k.startswith("PAPERBOT_")}
     assert documented == {f.name for f in fields(Settings)}, "every setting must be documented in .env.example"
     assert Settings.from_env(env) == Settings()
+
+
+def test_run_id_setting_gives_a_fresh_account_and_keeps_history():
+    from paperbot.db import ensure_run, open_db
+
+    s = Settings.from_env({"PAPERBOT_RUN_ID": "live-2"})
+    assert s.run_id == "live-2"
+    conn = open_db(":memory:")
+    ensure_run(conn, "live", "live", Settings())
+    conn.execute("UPDATE account SET cash_aud = 3.0 WHERE run_id = 'live'")
+    ensure_run(conn, s.run_id, "live", s)
+    cash = dict(conn.execute("SELECT run_id, cash_aud FROM account").fetchall())
+    assert cash == {"live": 3.0, "live-2": 50.0}
+    for bad in ("", "has space", "x" * 50, "../evil"):
+        with pytest.raises(ConfigError):
+            Settings.from_env({"PAPERBOT_RUN_ID": bad} if bad else {"PAPERBOT_RUN_ID": " "})

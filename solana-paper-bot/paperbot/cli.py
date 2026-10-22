@@ -21,7 +21,6 @@ from .metrics import compare_runs, compute, format_comparison, format_report
 from .replay import cost_scenarios, freeze_rules, observation_span, replay, replay_out_of_sample, time_split
 from .scanner import Scanner
 
-LIVE_RUN_ID = "live"
 
 
 def _ts(value: str | None) -> float | None:
@@ -56,12 +55,13 @@ def cmd_init_db(s, args) -> int:
 
 def cmd_scan(s, args) -> int:
     conn = open_db(s.db_path)
-    ensure_run(conn, args.run_id, "live", s)
-    engine = PaperEngine(conn, args.run_id, s, make_fx(s))
+    run_id = args.run_id or s.run_id
+    ensure_run(conn, run_id, "live", s)
+    engine = PaperEngine(conn, run_id, s, make_fx(s))
     scanner = Scanner(conn, s, DexScreenerClient.from_settings(s), engine)
     cycles = 1 if args.once else args.cycles
     scanner.run_forever(max_cycles=cycles)
-    print(format_report(compute(conn, args.run_id), "Live paper run"))
+    print(format_report(compute(conn, run_id), "Live paper run"))
     return 0
 
 
@@ -95,7 +95,7 @@ def cmd_validate_ingestion(s, args) -> int:
 
 def cmd_report(s, args) -> int:
     conn = open_db(args.db or s.db_path)
-    print(format_report(compute(conn, args.run_id), "Report"))
+    print(format_report(compute(conn, args.run_id or s.run_id), "Report"))
     return 0
 
 
@@ -234,7 +234,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("scan", help="live market data -> paper trades")
     sp.add_argument("--once", action="store_true", help="run a single cycle")
     sp.add_argument("--cycles", type=int, default=None)
-    sp.add_argument("--run-id", default=LIVE_RUN_ID)
+    sp.add_argument("--run-id", default=None, help="default: PAPERBOT_RUN_ID")
     sub.add_parser("validate-ingestion", help="one-off API fetch and field coverage check (no DB writes)")
     for name, help_ in (("report", "metrics for a run"), ("replay", "replay recorded observations"),
                         ("split-test", "chronological in-sample / out-of-sample replay"),
@@ -242,7 +242,7 @@ def build_parser() -> argparse.ArgumentParser:
         sp = sub.add_parser(name, help=help_)
         sp.add_argument("--db", default=None, help="source database (default PAPERBOT_DB_PATH)")
         if name == "report":
-            sp.add_argument("--run-id", default=LIVE_RUN_ID)
+            sp.add_argument("--run-id", default=None, help="default: PAPERBOT_RUN_ID")
         if name in ("replay", "scenarios"):
             sp.add_argument("--start", help="ISO time, UTC if no offset")
             sp.add_argument("--end")

@@ -60,7 +60,9 @@ if runs.empty:
     st.stop()
 
 run_ids = runs["run_id"].tolist()
-run_id = st.sidebar.selectbox("Run", run_ids, index=run_ids.index("live") if "live" in run_ids else 0)
+# Newest run first (fresh accounts are usually what you want to watch).
+run_ids = run_ids[::-1]
+run_id = st.sidebar.selectbox("Run", run_ids, index=0)
 if st.sidebar.button("Refresh"):
     st.rerun()
 st.sidebar.caption(f"Rules fingerprint: `{runs.set_index('run_id').loc[run_id, 'rules_fingerprint']}`")

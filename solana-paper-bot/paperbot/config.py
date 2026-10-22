@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from dataclasses import asdict, dataclass, fields
 from typing import Mapping
 
@@ -39,6 +40,9 @@ class ConfigError(ValueError):
 class Settings:
     # --- storage -----------------------------------------------------------
     db_path: str = "data/paperbot.sqlite3"
+    # Name of the DEX Screener paper account. Change it to start a fresh account;
+    # earlier runs stay in the database for comparison.
+    run_id: str = "live"
 
     # --- virtual account (AUD) ----------------------------------------------
     starting_cash_aud: float = 50.0
@@ -128,6 +132,8 @@ class Settings:
             if not cond:
                 errs.append(msg)
 
+        need(bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,40}", self.run_id)),
+             "run_id must be 1-41 letters, digits, '-', '_' or '.'")
         need(self.starting_cash_aud > 0, "starting_cash_aud must be > 0")
         need(self.max_open_positions >= 1, "max_open_positions must be >= 1")
         need(0 < self.position_pct_of_cash <= 1, "position_pct_of_cash must be in (0, 1]")
