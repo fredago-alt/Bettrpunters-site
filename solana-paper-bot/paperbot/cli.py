@@ -129,6 +129,16 @@ def cmd_compare(s, args) -> int:
     return 0
 
 
+def cmd_research(s, args) -> int:
+    from .research import Costs, run_research
+
+    conn = open_db(args.db or s.db_path)
+    costs = Costs(position_aud=args.size_aud, aud_per_usd=s.fx_static_aud_per_usd,
+                  network_lamports=5_000 + args.priority_lamports)
+    print(run_research(conn, costs))
+    return 0
+
+
 def cmd_freeze(s, args) -> int:
     doc = freeze_rules(s, args.out)
     print(f"Rules frozen to {args.out} at {_fmt(doc['frozen_at'])} (fingerprint {doc['rules_fingerprint']}).")
@@ -245,6 +255,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("compare", help="side-by-side evaluation of all live paper runs")
     sp.add_argument("--db", default=None)
     sp.add_argument("--runs", help="comma-separated run ids (default: all live runs)")
+    sp = sub.add_parser("research", help="exploratory analysis of recorded pump.fun launches")
+    sp.add_argument("--db", default=None)
+    sp.add_argument("--size-aud", type=float, default=5.0)
+    sp.add_argument("--priority-lamports", type=int, default=100_000)
     sp = sub.add_parser("freeze", help="freeze current strategy rules for out-of-sample testing")
     sp.add_argument("--out", default="frozen_rules.json")
     return p
@@ -253,7 +267,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "check-config": cmd_check_config, "init-db": cmd_init_db, "scan": cmd_scan,
     "validate-ingestion": cmd_validate_ingestion, "report": cmd_report, "replay": cmd_replay,
-    "split-test": cmd_split_test, "compare": cmd_compare, "freeze": cmd_freeze, "oos": cmd_oos, "scenarios": cmd_scenarios,
+    "split-test": cmd_split_test, "compare": cmd_compare, "research": cmd_research, "freeze": cmd_freeze, "oos": cmd_oos, "scenarios": cmd_scenarios,
     "sniper": cmd_sniper, "sniper-check": cmd_sniper_check,
 }
 
