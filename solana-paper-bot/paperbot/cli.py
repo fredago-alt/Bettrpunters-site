@@ -17,7 +17,7 @@ from .dexscreener import ApiError, DexScreenerClient, best_pair_per_token
 from .engine import PaperEngine
 from .filters import evaluate
 from .fx import make_fx
-from .metrics import compute, format_report
+from .metrics import compare_runs, compute, format_comparison, format_report
 from .replay import cost_scenarios, freeze_rules, observation_span, replay, replay_out_of_sample, time_split
 from .scanner import Scanner
 
@@ -120,6 +120,12 @@ def cmd_split_test(s, args) -> int:
     print(f"Rules fingerprint {s.rules_fingerprint()} (identical for both periods)")
     _print_replay(replay(src, s, None, split, label="in-sample"), "IN-SAMPLE")
     _print_replay(replay(src, s, split, None, label="out-of-sample"), "OUT-OF-SAMPLE")
+    return 0
+
+
+def cmd_compare(s, args) -> int:
+    conn = open_db(args.db or s.db_path)
+    print(format_comparison(compare_runs(conn, args.runs.split(",") if args.runs else None)))
     return 0
 
 
@@ -236,6 +242,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--variant", help="run a side-by-side test variant from variants/<name>.env")
     sp = sub.add_parser("sniper-check", help="connect to the Solana log stream and count decoded events")
     sp.add_argument("--seconds", type=float, default=30.0)
+    sp = sub.add_parser("compare", help="side-by-side evaluation of all live paper runs")
+    sp.add_argument("--db", default=None)
+    sp.add_argument("--runs", help="comma-separated run ids (default: all live runs)")
     sp = sub.add_parser("freeze", help="freeze current strategy rules for out-of-sample testing")
     sp.add_argument("--out", default="frozen_rules.json")
     return p
@@ -244,7 +253,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "check-config": cmd_check_config, "init-db": cmd_init_db, "scan": cmd_scan,
     "validate-ingestion": cmd_validate_ingestion, "report": cmd_report, "replay": cmd_replay,
-    "split-test": cmd_split_test, "freeze": cmd_freeze, "oos": cmd_oos, "scenarios": cmd_scenarios,
+    "split-test": cmd_split_test, "compare": cmd_compare, "freeze": cmd_freeze, "oos": cmd_oos, "scenarios": cmd_scenarios,
     "sniper": cmd_sniper, "sniper-check": cmd_sniper_check,
 }
 

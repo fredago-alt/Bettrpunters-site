@@ -130,3 +130,83 @@ def format_report(m: Metrics, title: str = "") -> str:
         f"Exit reasons           {m.exit_reasons}",
     ]
     return "\n".join(lines)
+
+
+def bootstrap_mean_ci(values: list[float], n_resamples: int = 5000, seed: int = 7,
+                      level: float = 0.95) -> tuple[float, float, float]:
+    """(low, high, share of resamples with mean > 0) for the mean of ``values``.
+    Resamples trades with replacement; deterministic for a given seed."""
+    import random
+
+    if len(values) < 2:
+        return float("nan"), float("nan"), float("nan")
+    rng = random.Random(seed)
+    n = len(values)
+    means = sorted(sum(rng.choice(values) for _ in range(n)) / n for _ in range(n_resamples))
+    lo = means[int((1 - level) / 2 * n_resamples)]
+    hi = means[int((1 + level) / 2 * n_resamples) - 1]
+    return lo, hi, sum(m > 0 for m in means) / n_resamples
+
+
+def compare_runs(conn: sqlite3.Connection, run_ids: list[str] | None = None) -> list[dict]:
+    """Side-by-side evaluation rows. Returns are per trade as % of the A$ cost, so
+    runs with different account or position sizes are comparable."""
+    if run_ids is None:
+        run_ids = [r[0] for r in conn.execute("SELECT run_id FROM runs WHERE kind='live' ORDER BY created_at")]
+    rows = []
+    for run in run_ids:
+        m = compute(conn, run)
+        trades = conn.execute("SELECT pnl_pct, closed_at, opened_at, cost_aud FROM positions WHERE run_id=? AND "
+                              "status='closed' ORDER BY closed_at, id", (run,)).fetchall()
+        pcts = [t[0] for t in trades]
+        lo, hi, p_pos = bootstrap_mean_ci(pcts)
+        half = len(pcts) // 2
+        days = (trades[-1][1] - trades[0][2]) / 86400 if trades else 0.0
+        costs = m.fees_aud + m.slippage_aud
+        rows.append({
+            "run": run, "trades": m.trades, "days": days, "trades_per_day": m.trades / days if days else None,
+            "win_rate": m.win_rate, "expectancy_pct": m.expectancy_pct, "ci95_low": lo, "ci95_high": hi,
+            "p_mean_positive": p_pos, "first_half_pct": sum(pcts[:half]) / half if half else None,
+            "second_half_pct": sum(pcts[half:]) / (len(pcts) - half) if len(pcts) - half else None,
+            "expectancy_aud": m.expectancy_aud, "net_pnl_aud": m.net_pnl_aud, "profit_factor": m.profit_factor,
+            "avg_win_aud": m.avg_win_aud, "avg_loss_aud": m.avg_loss_aud, "max_dd_pct": m.max_drawdown_pct,
+            "fees_aud": m.fees_aud, "slippage_aud": m.slippage_aud,
+            "costs_pct_of_traded": costs / sum(t[3] for t in trades) * 100 if trades else None,
+            "failed_exits": m.failed_exit_attempts, "stale_writeoffs": m.stale_writeoffs,
+            "exit_reasons": m.exit_reasons, "abandoned": m.abandon_reasons,
+        })
+    return rows
+
+
+def format_comparison(rows: list[dict]) -> str:
+    def f(v, fmt):
+        return "n/a" if v is None or v != v else fmt.format(v)
+
+    out = ["PAPER TRADING ONLY - simulated results. Per-trade returns are % of the A$ position cost.", ""]
+    for r in rows:
+        verdict = ("CI excludes 0 (positive)" if r["ci95_low"] == r["ci95_low"] and r["ci95_low"] > 0 else
+                   "CI excludes 0 (negative)" if r["ci95_high"] == r["ci95_high"] and r["ci95_high"] < 0 else
+                   "CI includes 0 - not distinguishable from zero")
+        out += [
+            f"== {r['run']}: {r['trades']} closed trades over {r['days']:.1f} days "
+            f"({f(r['trades_per_day'], '{:.1f}')}/day)",
+            f"   win rate {f(r['win_rate'], '{:.1%}')} | profit factor {f(r['profit_factor'], '{:.2f}')} | "
+            f"net P&L A${r['net_pnl_aud']:.2f} | max drawdown {r['max_dd_pct']:.1f}%",
+            f"   net expectancy {f(r['expectancy_pct'], '{:+.2f}')}% per trade "
+            f"(A${f(r['expectancy_aud'], '{:+.4f}')}); 95% CI {f(r['ci95_low'], '{:+.2f}')}% .. "
+            f"{f(r['ci95_high'], '{:+.2f}')}%  -> {verdict}",
+            f"   share of bootstrap resamples with positive mean: {f(r['p_mean_positive'], '{:.0%}')}",
+            f"   stability: first half {f(r['first_half_pct'], '{:+.2f}')}% vs second half "
+            f"{f(r['second_half_pct'], '{:+.2f}')}% per trade",
+            f"   avg win A${f(r['avg_win_aud'], '{:.4f}')} / avg loss A${f(r['avg_loss_aud'], '{:.4f}')} | "
+            f"fees A${r['fees_aud']:.2f} + slippage A${r['slippage_aud']:.2f} "
+            f"= {f(r['costs_pct_of_traded'], '{:.2f}')}% of amount traded",
+            f"   failed exit attempts {r['failed_exits']} | stale write-offs {r['stale_writeoffs']}",
+            f"   exits {r['exit_reasons']}",
+            f"   abandoned entries {r['abandoned']}",
+            "",
+        ]
+    out.append("Caveats: in-sample only (rules were not frozen before this data); runs overlap in time and "
+               "see the same market, so they are not independent; costs, latency and fill rates are labelled "
+               "assumptions. Do not risk money on this - next step is freeze + out-of-sample.")
+    return "\n".join(out)
