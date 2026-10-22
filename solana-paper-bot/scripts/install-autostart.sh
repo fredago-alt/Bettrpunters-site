@@ -52,9 +52,12 @@ NoDisplay=true
 DESKTOP
 echo "desktop autostart: $AUTOSTART"
 
-# 3. Make sure something is checking right now.
+# 3. Restart the watchdog loop so it runs the current version of keepalive.sh
+#    (a loop started before a `git pull` keeps running the old code).
+pkill -f "keepalive.sh --loop" 2>/dev/null
+sleep 1
 nohup "$KEEP" --loop >/dev/null 2>&1 < /dev/null &
-sleep 3
+sleep 5
 echo
 echo "Scanner running:   $(pgrep -fc 'python -m paperbot scan')"
 echo "Sniper running:    $(pgrep -fc 'python -m paperbot sniper$')  (only if SNIPER_ENABLED=true in .env)"
