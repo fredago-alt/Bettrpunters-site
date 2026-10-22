@@ -75,7 +75,7 @@ async def run(engine: SniperEngine, s, stream: LogStream, rpc: ReadOnlyRpc, sol:
                     if isinstance(ev, CreateEvent):
                         engine.on_create(ev, received_at, sig, slot)
                     elif isinstance(ev, TradeEvent):
-                        engine.on_trade(ev, received_at)
+                        engine.on_trade(ev, received_at, slot, sig)
                     elif isinstance(ev, CompleteEvent):
                         engine.on_complete(ev, received_at)
                 except Exception:

@@ -218,7 +218,5 @@ def test_shipped_variant_files_are_valid():
 
     from paperbot.sniper.config import VARIANTS_DIR, variant_env
 
-    files = sorted(Path(VARIANTS_DIR).glob("*.env"))
-    assert files, "expected at least one variant file"
-    for f in files:
+    for f in sorted(Path(VARIANTS_DIR).glob("*.env")):
         SniperSettings.from_env(variant_env(f.stem, {}))

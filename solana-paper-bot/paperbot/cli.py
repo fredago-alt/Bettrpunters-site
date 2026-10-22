@@ -130,9 +130,13 @@ def cmd_compare(s, args) -> int:
 
 
 def cmd_research(s, args) -> int:
-    from .research import Costs, launch_ceiling, run_research
+    from .research import Costs, launch_ceiling, run_research, slot_ceiling
 
     conn = open_db(args.db or s.db_path)
+    if args.slots:
+        print("PAPER TRADING ONLY - exploratory research (hypotheses, not proof).")
+        print(slot_ceiling(conn, s.fx_static_aud_per_usd))
+        return 0
     if args.launch:
         print("PAPER TRADING ONLY - exploratory research (hypotheses, not proof).")
         print(launch_ceiling(conn, args.size_aud, s.fx_static_aud_per_usd))
@@ -194,7 +198,8 @@ def cmd_sniper(s, args) -> int:
     conn = open_db(s.db_path)
     ensure_run(conn, ss.run_id, "live", ss)
     sol = SolPrice(DexScreenerClient.from_settings(s))
-    engine = SniperEngine(conn, ss, make_fx(s), sol, rng=random.Random(ss.random_seed))
+    engine = SniperEngine(conn, ss, make_fx(s), sol, rng=random.Random(ss.random_seed),
+                          record_market_data=args.variant is None)
     print(f"pump.fun sniper SIMULATION run={ss.run_id} rules={ss.rules_fingerprint()} rpc={redact(ss.rpc_ws_url)}")
     try:
         asyncio.run(run(engine, ss, LogStream(ss.rpc_ws_url, PUMP_PROGRAM, ss.stream_idle_reconnect_seconds),
@@ -264,6 +269,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--size-aud", type=float, default=5.0)
     sp.add_argument("--priority-lamports", type=int, default=100_000)
     sp.add_argument("--launch", action="store_true", help="only the first-buyer launch-ceiling test")
+    sp.add_argument("--slots", action="store_true", help="slot-by-slot entry test (needs recorded early trades)")
     sp = sub.add_parser("freeze", help="freeze current strategy rules for out-of-sample testing")
     sp.add_argument("--out", default="frozen_rules.json")
     return p

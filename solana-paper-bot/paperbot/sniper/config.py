@@ -87,6 +87,7 @@ class SniperSettings:
     # data
     bar_seconds: float = 5.0
     track_window_seconds: float = 600.0
+    early_trades_seconds: float = 30.0  # record every trade (with slot) this long after launch
     account_refresh_seconds: float = 2.0
     sol_price_refresh_seconds: float = 30.0
     stream_idle_reconnect_seconds: float = 60.0
@@ -145,6 +146,8 @@ class SniperSettings:
         need(0 <= self.default_creator_fee_bps <= 1000, "default_creator_fee_bps must be in [0, 1000]")
         need(self.network_fee_lamports >= 0 and self.priority_fee_lamports >= 0, "fees must be >= 0")
         need(self.bar_seconds >= 1, "bar_seconds must be >= 1")
+        need(0 <= self.early_trades_seconds <= self.track_window_seconds,
+             "early_trades_seconds must be in [0, track_window_seconds]")
         need(self.account_refresh_seconds >= 0.5, "account_refresh_seconds must be >= 0.5")
         need(self.sol_price_refresh_seconds >= 5, "sol_price_refresh_seconds must be >= 5")
         need(self.stream_idle_reconnect_seconds >= 10, "stream_idle_reconnect_seconds must be >= 10")

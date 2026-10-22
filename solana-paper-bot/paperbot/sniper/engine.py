@@ -66,8 +66,12 @@ class MintState:
 
 
 class SniperEngine:
-    def __init__(self, conn: sqlite3.Connection, settings, fx, sol_price, rng: random.Random | None = None):
+    def __init__(self, conn: sqlite3.Connection, settings, fx, sol_price, rng: random.Random | None = None,
+                 record_market_data: bool = True):
         self.conn = conn
+        # Only one process (the main sniper) records shared market data; test variants
+        # watching the same stream would otherwise write duplicate bars/trades.
+        self.record_market_data = record_market_data
         self.s = settings
         self.run_id = settings.run_id
         self.fx = fx  # .get() -> FxQuote (AUD per USD)
@@ -143,7 +147,7 @@ class SniperEngine:
                                              ev.creator_fee_bps, ev.virtual_quote, ev.virtual_token,
                                              last_update=received_at)
 
-    def on_trade(self, ev: TradeEvent, received_at: float) -> None:
+    def on_trade(self, ev: TradeEvent, received_at: float, slot: int = 0, signature: str = "") -> None:
         st = self.states.get(ev.mint)
         if st is None:  # created before we started watching, or skipped type
             return
@@ -151,6 +155,13 @@ class SniperEngine:
             return
         self.stats["trades"] += 1
         with transaction(self.conn):
+            if self.record_market_data and received_at - st.seen_at <= self.s.early_trades_seconds:
+                self.conn.execute(
+                    "INSERT INTO pump_early_trades(mint, slot, signature, received_at, is_buy, by_creator, quote_amount, "
+                    "token_amount, virtual_quote, virtual_token, real_token, fee_bps) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (ev.mint, slot, signature, received_at, int(ev.is_buy), int(ev.user == st.creator),
+                     ev.quote_amount, ev.token_amount, ev.virtual_quote, ev.virtual_token, ev.real_token,
+                     (ev.fee_bps or 0) + (ev.creator_fee_bps or 0) if ev.fee_bps else None))
             self._roll_bar(st, received_at)
             price = spot_price_sol(ev.virtual_quote, ev.virtual_token)
             st.virtual_quote, st.virtual_token, st.real_token = ev.virtual_quote, ev.virtual_token, ev.real_token
@@ -245,7 +256,7 @@ class SniperEngine:
     def _flush_bar(self, st: MintState, now: float) -> None:
         b = st.bar
         st.bar = None
-        if b is None:
+        if b is None or not self.record_market_data:
             return
         sp = self.sol_price.get()
         self.conn.execute(
@@ -464,6 +475,8 @@ class SniperEngine:
 
     # ------------------------------------------------------------ misc
     def _token_status(self, mint: str, status: str, detail: str | None) -> None:
+        if not self.record_market_data:
+            return
         self.conn.execute("UPDATE pump_tokens SET status=?, rejection=? WHERE mint=?", (status, detail, mint))
 
     def held_curves(self) -> dict[str, str]:

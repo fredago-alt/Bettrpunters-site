@@ -26,7 +26,8 @@ from bisect import bisect_right
 from dataclasses import dataclass
 
 from .metrics import bootstrap_mean_ci
-from .sniper.pumpfun import NATIVE_SOL_QUOTE, curve_progress_pct
+from .sniper.pumpfun import (NATIVE_SOL_QUOTE, curve_buy_tokens, curve_progress_pct, simulate_curve_buy,
+                             simulate_curve_sell)
 
 LATENCY_S = 0.5
 
@@ -65,15 +66,34 @@ def load_tokens(conn: sqlite3.Connection) -> list[Token]:
         "SELECT mint, seen_at, COALESCE(creator_fee_bps, 30) AS cfee FROM pump_tokens "
         "WHERE mayhem = 0 AND (quote_mint IS NULL OR quote_mint = ?) ORDER BY seen_at",
         (NATIVE_SOL_QUOTE,)).fetchall()
-    bars: dict[str, list] = {}
-    for r in conn.execute("SELECT * FROM pump_bars ORDER BY mint, bar_end, id"):
-        bars.setdefault(r["mint"], []).append(r)
+    raw: dict[str, list] = {}
+    for r in conn.execute("SELECT * FROM pump_bars ORDER BY mint, bar_start, id"):
+        raw.setdefault(r["mint"], []).append(r)
+    bars = {m: sorted(single_timeline(rows), key=lambda r: r["bar_end"]) for m, rows in raw.items()}
     out = []
     for t in toks:
         b = bars.get(t["mint"], [])
         # creator fee in create events is often 0 while trades show 30 bps; use the larger, plus 95 protocol
         out.append(Token(t["mint"], t["seen_at"], 95 + max(int(t["cfee"] or 0), 30), [x["bar_end"] for x in b], b))
     return out
+
+
+def single_timeline(rows: list) -> list:
+    """Older databases contain the same token's bars written by several sniper processes
+    (main + test variants), interleaved in time. Each process's bars never overlap each
+    other, so split the bars into non-overlapping chains and keep the chain that saw the
+    most trades - i.e. one process's view, without double counting."""
+    chains: list[list] = []
+    for r in sorted(rows, key=lambda r: (r["bar_start"], r["id"])):
+        for ch in chains:
+            if ch[-1]["bar_end"] <= r["bar_start"] + 1e-6:
+                ch.append(r)
+                break
+        else:
+            chains.append([r])
+    if len(chains) <= 1:
+        return rows
+    return max(chains, key=lambda ch: (sum(b["n_buys"] + b["n_sells"] for b in ch), len(ch)))
 
 
 def _upto(tok: Token, t: float) -> list:
@@ -287,3 +307,94 @@ def launch_ceiling(conn: sqlite3.Connection, position_aud: float, aud_per_usd: f
     out.append("   Bars are 5 s, so '+2s' uses the last price known by then; the first bar's open is the price "
                "after its first trade.")
     return "\n".join(out)
+
+
+# ------------------------------------------------------------- slot-by-slot entry
+SLOT_OFFSETS = (0, 1, 2, 3, 5, 10, 25)
+SLOT_HOLDS = (5, 12, 25, 50)  # ~2, 5, 10, 20 seconds at ~0.4 s per slot
+
+
+def _typical_sol_usd(conn: sqlite3.Connection) -> float:
+    vals = sorted(r[0] for r in conn.execute("SELECT sol_usd FROM pump_bars WHERE sol_usd > 0 LIMIT 20000"))
+    return vals[len(vals) // 2] if vals else 150.0
+
+
+def slot_ceiling(conn: sqlite3.Connection, aud_per_usd: float, sizes=(5.0, 50.0),
+                 fees=(("typical sniper 0.001 SOL", 1_005_000), ("competitive 0.005 SOL", 5_005_000))) -> str:
+    """Net % for landing our buy k slots after the launch slot and selling h slots later,
+    using every recorded trade and exact bonding-curve maths (our order's price impact
+    included, and our buy kept in the curve when we sell).
+
+    Entry is OPTIMISTIC: k=0 means directly after the creator's own launch transaction;
+    k>=1 means first in slot launch+k, ahead of everyone else in that slot. Exit is
+    pessimistic: after every trade in the exit slot."""
+    toks = conn.execute(
+        "SELECT mint, slot, signature, seen_at FROM pump_tokens WHERE mayhem = 0 AND slot > 0 AND "
+        "(quote_mint IS NULL OR quote_mint = ?) ORDER BY seen_at", (NATIVE_SOL_QUOTE,)).fetchall()
+    trades: dict[str, list] = {}
+    for r in conn.execute("SELECT * FROM pump_early_trades ORDER BY mint, slot, id"):
+        trades.setdefault(r["mint"], []).append(r)
+    toks = [t for t in toks if t["mint"] in trades]
+    if len(toks) < 40:
+        return ("\nD. SLOT-BY-SLOT ENTRY: not enough data yet "
+                f"({len(toks)} launches with recorded early trades; needs the updated sniper to run for a while).")
+    sol_usd = _typical_sol_usd(conn)
+    half = toks[len(toks) // 2]["seen_at"]
+    max_slots = max(SLOT_OFFSETS) + max(SLOT_HOLDS)
+    out = ["", "D. SLOT-BY-SLOT ENTRY - how late can you be? (optimistic entry, exact curve maths, net %)",
+           f"   {len(toks)} launches with every trade of their first ~30 s recorded; SOL/USD ~{sol_usd:.0f}.",
+           "   Each cell: discovery / validation mean net %, '*' = both halves > 0 and validation 95% CI above 0."]
+    for size in sizes:
+        budget = int(size / aud_per_usd / sol_usd * 1e9)
+        for fee_name, network in fees:
+            out.append(f"   -- A${size:g} per trade, network/priority fee {fee_name} per transaction")
+            out.append("      landed at     " + "".join(f"sell +{h:>2} slots   " for h in SLOT_HOLDS))
+            for k in SLOT_OFFSETS:
+                cells = []
+                for h in SLOT_HOLDS:
+                    halves: list[list[float]] = [[], []]
+                    for t in toks:
+                        tr = trades[t["mint"]]
+                        if tr[-1]["slot"] - t["slot"] < 0 or k + h > max_slots:
+                            continue
+                        r = _slot_trade(tr, t["slot"], t["signature"], k, h, budget, network)
+                        if r is not None:
+                            halves[t["seen_at"] >= half].append(r)
+                    d, v = _stats(halves[0]), _stats(halves[1])
+                    if not d["n"] or not v["n"]:
+                        cells.append(f"{'n/a':<17}")
+                        continue
+                    star = "*" if d["mean"] > 0 and v["mean"] > 0 and v["lo"] > 0 else " "
+                    cells.append(f"{d['mean']:+6.1f}/{v['mean']:+6.1f}{star}   ")
+                label = "after creator" if k == 0 else f"launch+{k} slot"
+                out.append(f"      {label:<14}" + "".join(cells))
+    out.append("   Slots are ~0.4 s. Real snipers compete for these positions (and creators bundle their own "
+               "buys), so actual fills land later than shown; treat each row as the best case for that delay.")
+    return "\n".join(out)
+
+
+def _slot_trade(tr: list, create_slot: int, create_sig: str | None, k: int, h: int, budget: int,
+                network: int) -> float | None:
+    first = tr[0]
+    if first["is_buy"]:
+        pre = (first["virtual_quote"] - first["quote_amount"], first["virtual_token"] + first["token_amount"])
+    else:
+        pre = (first["virtual_quote"] + first["quote_amount"], first["virtual_token"] - first["token_amount"])
+    if k == 0:
+        before = [r for r in tr if r["signature"] == create_sig]
+    else:
+        before = [r for r in tr if r["slot"] < create_slot + k]
+    vq, vt = (before[-1]["virtual_quote"], before[-1]["virtual_token"]) if before else pre
+    fee = max((r["fee_bps"] for r in tr if r["fee_bps"]), default=125)
+    try:
+        buy = simulate_curve_buy(vq, vt, budget, fee, network)
+    except ValueError:
+        return -100.0
+    if buy.tokens_raw <= 0:
+        return None
+    after = [r for r in tr if r["slot"] <= create_slot + k + h]
+    xq, xt = (after[-1]["virtual_quote"], after[-1]["virtual_token"]) if after else (vq, vt)
+    xt -= curve_buy_tokens(xq, xt, buy.curve_in)
+    xq += buy.curve_in
+    sell = simulate_curve_sell(xq, xt, buy.tokens_raw, fee, network)
+    return (sell.proceeds / budget - 1) * 100
