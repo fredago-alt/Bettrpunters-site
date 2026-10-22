@@ -62,6 +62,19 @@ cp .env.example .env            # edit if you want to change any setting
 .venv/bin/python -m paperbot oos --frozen frozen_rules.json
 ```
 
+### Auto-restart (recommended for multi-week runs)
+
+```bash
+bash scripts/install-autostart.sh          # once; safe to re-run
+bash scripts/install-autostart.sh --remove # undo
+```
+This adds a cron job (at boot and every minute) and a desktop-login autostart entry that run
+`scripts/keepalive.sh`, which starts the scanner and the dashboard if either is not running.
+Restarts are logged to `data/keepalive.log`. If the machine itself is powered off, nothing
+runs until it is started again; on restart the scanner refreshes open positions first.
+Downtime still leaves gaps in the data, and a position held through a long outage exits at
+whatever price is available on restart, or is written off if its pair is gone.
+
 Port 8501 must be allowed by the VM firewall if you open the dashboard directly; an SSH
 tunnel avoids exposing it. The dashboard opens the database read-only.
 
