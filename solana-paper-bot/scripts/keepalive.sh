@@ -15,9 +15,21 @@ check() {
     nohup .venv/bin/python -m paperbot scan >> data/scan.log 2>&1 < /dev/null &
     log "scanner was not running - started (pid $!)"
   fi
-  if grep -qs '^SNIPER_ENABLED=true' .env && ! pgrep -f "python -m paperbot sniper" >/dev/null; then
-    nohup .venv/bin/python -m paperbot sniper >> data/sniper.log 2>&1 < /dev/null &
-    log "sniper was not running - started (pid $!)"
+  if grep -qs '^SNIPER_ENABLED=true' .env; then
+    # '$' anchors the match so the main sniper and each variant are checked separately.
+    if ! pgrep -f "python -m paperbot sniper\$" >/dev/null; then
+      nohup .venv/bin/python -m paperbot sniper >> data/sniper.log 2>&1 < /dev/null &
+      log "sniper was not running - started (pid $!)"
+    fi
+    # Side-by-side test variants: one per variants/<name>.env file.
+    for f in variants/*.env; do
+      [ -e "$f" ] || continue
+      name="$(basename "$f" .env)"
+      if ! pgrep -f "python -m paperbot sniper --variant $name\$" >/dev/null; then
+        nohup .venv/bin/python -m paperbot sniper --variant "$name" >> "data/sniper-$name.log" 2>&1 < /dev/null &
+        log "sniper variant $name was not running - started (pid $!)"
+      fi
+    done
   fi
   if ! pgrep -f "streamlit run dashboard/app.py" >/dev/null; then
     nohup .venv/bin/streamlit run dashboard/app.py --server.port 8501 --server.headless true \

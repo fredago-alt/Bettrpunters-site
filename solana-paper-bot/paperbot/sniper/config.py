@@ -6,12 +6,39 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+from pathlib import Path
 from dataclasses import asdict, dataclass, fields
 from typing import Mapping
 
 from ..config import ConfigError, _coerce, assert_no_live_trading_env
 
 ENV_PREFIX = "SNIPER_"
+VARIANTS_DIR = Path(__file__).resolve().parents[2] / "variants"
+_VARIANT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+
+
+def variant_env(name: str, base_env: Mapping[str, str], variants_dir: Path = VARIANTS_DIR) -> dict[str, str]:
+    """Environment for a side-by-side test variant: ``base_env`` overlaid with
+    ``variants/<name>.env``. Only SNIPER_* keys may be overridden, and the run id
+    defaults to ``sniper-<name>`` so each variant keeps its own virtual account."""
+    from dotenv import dotenv_values
+
+    if not _VARIANT_NAME.match(name):
+        raise ConfigError(f"invalid variant name {name!r} (use lowercase letters, digits and '-')")
+    path = variants_dir / f"{name}.env"
+    if not path.is_file():
+        raise ConfigError(f"variant file not found: {path}")
+    overrides = {k: v for k, v in dotenv_values(path).items() if v is not None}
+    bad = [k for k in overrides if not k.startswith(ENV_PREFIX) or k == "SNIPER_ENABLED"]
+    if bad:
+        raise ConfigError(f"{path.name}: only SNIPER_* settings may be set in a variant file, got {bad}")
+    env = {**base_env, **overrides}
+    if "SNIPER_RUN_ID" not in overrides:
+        env["SNIPER_RUN_ID"] = f"sniper-{name}"
+    if env["SNIPER_RUN_ID"] == base_env.get("SNIPER_RUN_ID", "sniper"):
+        raise ConfigError(f"{path.name}: a variant must use its own SNIPER_RUN_ID")
+    return env
 
 
 @dataclass(frozen=True)

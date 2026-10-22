@@ -191,3 +191,34 @@ def test_runner_end_to_end_with_fake_stream():
     row = conn.execute("SELECT status, exit_reason FROM positions").fetchone()
     assert tuple(row) == ("closed", "max_hold")
     assert conn.execute("SELECT COUNT(*) FROM equity_snapshots").fetchone()[0] >= 1
+
+
+def test_variant_env_overlays_sniper_settings_with_own_run_id(tmp_path):
+    from paperbot.sniper.config import variant_env
+
+    (tmp_path / "sl30.env").write_text("SNIPER_STOP_LOSS_PCT=-30\n")
+    env = variant_env("sl30", {"SNIPER_TAKE_PROFIT_PCT": "40", "PAPERBOT_DB_PATH": "x"}, tmp_path)
+    s = SniperSettings.from_env(env)
+    assert (s.stop_loss_pct, s.take_profit_pct, s.run_id) == (-30.0, 40.0, "sniper-sl30")
+    assert s.rules_fingerprint() != SniperSettings(take_profit_pct=40).rules_fingerprint()
+
+
+def test_variant_env_rejects_bad_names_files_and_keys(tmp_path):
+    from paperbot.sniper.config import variant_env
+
+    (tmp_path / "ok.env").write_text("PAPERBOT_DB_PATH=/elsewhere\n")
+    (tmp_path / "same.env").write_text("SNIPER_RUN_ID=sniper\n")
+    for name in ("../etc", "UPPER", "missing", "ok", "same"):
+        with pytest.raises(ConfigError):
+            variant_env(name, {}, tmp_path)
+
+
+def test_shipped_variant_files_are_valid():
+    from pathlib import Path
+
+    from paperbot.sniper.config import VARIANTS_DIR, variant_env
+
+    files = sorted(Path(VARIANTS_DIR).glob("*.env"))
+    assert files, "expected at least one variant file"
+    for f in files:
+        SniperSettings.from_env(variant_env(f.stem, {}))

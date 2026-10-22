@@ -153,10 +153,12 @@ def cmd_scenarios(s, args) -> int:
     return 0
 
 
-def _sniper_settings():
-    from .sniper.config import SniperSettings
+def _sniper_settings(variant: str | None = None):
+    import os
 
-    return SniperSettings.from_env()
+    from .sniper.config import SniperSettings, variant_env
+
+    return SniperSettings.from_env(variant_env(variant, os.environ) if variant else None)
 
 
 def cmd_sniper(s, args) -> int:
@@ -168,7 +170,7 @@ def cmd_sniper(s, args) -> int:
     from .sniper.rpc import LogStream, ReadOnlyRpc, redact
     from .sniper.runner import SolPrice, run
 
-    ss = _sniper_settings()
+    ss = _sniper_settings(args.variant)
     conn = open_db(s.db_path)
     ensure_run(conn, ss.run_id, "live", ss)
     sol = SolPrice(DexScreenerClient.from_settings(s))
@@ -231,6 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--slippages", default="0.5,1.5,3.0,5.0")
     sp = sub.add_parser("sniper", help="pump.fun on-chain sniper SIMULATION (paper only)")
     sp.add_argument("--seconds", type=float, default=None, help="stop after this many seconds")
+    sp.add_argument("--variant", help="run a side-by-side test variant from variants/<name>.env")
     sp = sub.add_parser("sniper-check", help="connect to the Solana log stream and count decoded events")
     sp.add_argument("--seconds", type=float, default=30.0)
     sp = sub.add_parser("freeze", help="freeze current strategy rules for out-of-sample testing")
