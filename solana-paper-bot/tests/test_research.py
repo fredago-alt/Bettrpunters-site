@@ -79,3 +79,22 @@ def test_report_needs_enough_data():
     assert "Not enough" in run_research(open_db(":memory:"), Costs())
 
 
+
+
+def test_launch_ceiling_buys_after_first_trade_and_reports_upper_bound():
+    from paperbot.research import launch_ceiling
+
+    conn = open_db(":memory:")
+    for i in range(50):
+        # first bar opens at 1.0 (after the creator's buy), pumps to 1.3 by 10 s, then dies
+        path = [(5, 1.0), (10, 1.3), (15, 0.5), (20, 0.4)]
+        add_token(conn, f"L{i}", T0 + 60 * i, path)
+    text = launch_ceiling(conn, 5.0, 1.42)
+    assert "UPPER BOUND" in text and "hindsight best in 30s" in text
+    def mean_after(label):
+        line = next(ln for ln in text.splitlines() if label in ln)
+        return float(line.split("mean")[1].split("%")[0])
+
+    assert mean_after("sell at +10s") > 20  # +30% before costs
+    assert mean_after("sell at +30s") < -50  # the token died
+    assert mean_after("hindsight best in 30s") > 20

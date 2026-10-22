@@ -239,3 +239,51 @@ def run_research(conn: sqlite3.Connection, costs: Costs) -> str:
                 "'significant' by chance alone.",
             "PROMISING: " + (", ".join(promising) if promising else "none")]
     return "\n".join(out)
+
+
+# ----------------------------------------------------------------- launch ceiling
+LAUNCH_EXITS = (2, 5, 10, 15, 30, 60)
+LAUNCH_FEES = (("cheap fee 0.0001 SOL", 105_000), ("typical sniper 0.001 SOL", 1_005_000),
+               ("competitive 0.005 SOL", 5_005_000))
+
+
+def launch_ceiling(conn: sqlite3.Connection, position_aud: float, aud_per_usd: float) -> str:
+    """Best-case 'first buyer' test: buy at the price right after the token's FIRST trade
+    (normally the creator's own buy in the launch transaction - nobody else can be earlier)
+    and sell N seconds after launch. Also a perfect-hindsight sale at the highest price in
+    the first 30 s, which no real bot can achieve. Both are upper bounds: real snipers
+    compete for the first slot and most of them land later than this."""
+    toks = [t for t in load_tokens(conn) if t.bars]
+    if len(toks) < 40:
+        return "Not enough recorded launches for the launch-ceiling test."
+    half = toks[len(toks) // 2].seen_at
+    out = [
+        "",
+        "C. LAUNCH CEILING - 'first to buy, first to sell' (UPPER BOUND, not achievable in practice)",
+        "   Entry: the price right after the very first trade (usually the creator's own buy).",
+        f"   Position A${position_aud:g}. Sell at a fixed time after launch, or at the best price in 30 s (hindsight).",
+    ]
+    for fee_name, network in LAUNCH_FEES:
+        costs = Costs(position_aud=position_aud, aud_per_usd=aud_per_usd, network_lamports=network)
+        out.append(f"   -- network/priority fee per transaction: {fee_name}")
+        for label, seconds in [(f"sell at +{s}s", s) for s in LAUNCH_EXITS] + [("hindsight best in 30s", None)]:
+            halves: list[list[float]] = [[], []]
+            for t in toks:
+                first = t.bars[0]
+                p_in = first["open_price_sol"] or first["close_price_sol"]
+                if not p_in:
+                    continue
+                if seconds is None:
+                    window = [b for b in t.bars if b["bar_end"] <= t.seen_at + 30] or [first]
+                    p_out = max(b["high_price_sol"] or 0 for b in window)
+                else:
+                    p_out, _ = price_at(t, t.seen_at + seconds)
+                    p_out = p_out or p_in
+                r = costs.net_return(p_out / p_in - 1, t.fee_bps, first["sol_usd"])
+                halves[t.seen_at >= half].append(r)
+            d, v = _stats(halves[0]), _stats(halves[1])
+            out.append(f"      {label:<22} disc {_fmt(d)}")
+            out.append(f"      {'':<22} val  {_fmt(v)}")
+    out.append("   Bars are 5 s, so '+2s' uses the last price known by then; the first bar's open is the price "
+               "after its first trade.")
+    return "\n".join(out)

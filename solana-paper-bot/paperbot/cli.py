@@ -130,9 +130,13 @@ def cmd_compare(s, args) -> int:
 
 
 def cmd_research(s, args) -> int:
-    from .research import Costs, run_research
+    from .research import Costs, launch_ceiling, run_research
 
     conn = open_db(args.db or s.db_path)
+    if args.launch:
+        print("PAPER TRADING ONLY - exploratory research (hypotheses, not proof).")
+        print(launch_ceiling(conn, args.size_aud, s.fx_static_aud_per_usd))
+        return 0
     costs = Costs(position_aud=args.size_aud, aud_per_usd=s.fx_static_aud_per_usd,
                   network_lamports=5_000 + args.priority_lamports)
     print(run_research(conn, costs))
@@ -259,6 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--db", default=None)
     sp.add_argument("--size-aud", type=float, default=5.0)
     sp.add_argument("--priority-lamports", type=int, default=100_000)
+    sp.add_argument("--launch", action="store_true", help="only the first-buyer launch-ceiling test")
     sp = sub.add_parser("freeze", help="freeze current strategy rules for out-of-sample testing")
     sp.add_argument("--out", default="frozen_rules.json")
     return p
