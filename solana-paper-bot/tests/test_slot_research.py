@@ -52,7 +52,7 @@ def test_only_main_sniper_records_market_data():
     c = Curve()
     eng.on_create(c.create_event(), T0, "CREATE", 100)
     eng.on_trade(c.trade("b1", 0.5), T0 + 0.4, slot=101, signature="s1")
-    eng.on_trade(c.trade("b2", 0.5), T0 + 40, slot=200, signature="s2")  # after the 30 s window
+    eng.on_trade(c.trade("b2", 0.5), T0 + 130, slot=400, signature="s2")  # after the 120 s window
     rows = conn.execute("SELECT slot, signature FROM pump_early_trades").fetchall()
     assert [tuple(r) for r in rows] == [(101, "s1")]
 

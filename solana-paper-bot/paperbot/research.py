@@ -26,8 +26,8 @@ from bisect import bisect_right
 from dataclasses import dataclass
 
 from .metrics import bootstrap_mean_ci
-from .sniper.pumpfun import (NATIVE_SOL_QUOTE, curve_buy_tokens, curve_progress_pct, simulate_curve_buy,
-                             simulate_curve_sell)
+from .sniper.pumpfun import (NATIVE_SOL_QUOTE, curve_buy_tokens, curve_progress_pct, curve_sell_lamports,
+                             simulate_curve_buy, simulate_curve_sell)
 
 LATENCY_S = 0.5
 
@@ -394,6 +394,160 @@ def _slot_trade(tr: list, create_slot: int, create_sig: str | None, k: int, h: i
         return None
     after = [r for r in tr if r["slot"] <= create_slot + k + h]
     xq, xt = (after[-1]["virtual_quote"], after[-1]["virtual_token"]) if after else (vq, vt)
+    xt -= curve_buy_tokens(xq, xt, buy.curve_in)
+    xq += buy.curve_in
+    sell = simulate_curve_sell(xq, xt, buy.tokens_raw, fee, network)
+    return (sell.proceeds / budget - 1) * 100
+
+
+# ----------------------------------------------------------------- copy-trading
+MIN_TOKENS_FOR_RECORD = 5
+TOP_WALLETS = 20
+COPY_DELAYS = (1, 2, 5, 10)  # slots after the copied wallet's trade
+WALLET_FEE = 0.0125  # ~ protocol + creator fee per side, as observed on chain
+
+
+def _end_reserves(tok: Token | None, fallback: tuple[int, int]) -> tuple[int, int]:
+    """Reserves at the end of the recording window (bars), else the last early trade."""
+    if tok and tok.bars:
+        last = tok.bars[-1]
+        if last["virtual_quote"] and last["virtual_token"]:
+            return last["virtual_quote"], last["virtual_token"]
+    return fallback
+
+
+def _wallet_token_results(trades: list, end: tuple[int, int]) -> dict[str, dict]:
+    """Per wallet (creator excluded) for one token: SOL spent, SOL received, and the
+    value of tokens still held, sold into the end-of-window curve."""
+    per: dict[str, dict] = {}
+    for r in trades:
+        if r["by_creator"] or not r["user"]:
+            continue
+        w = per.setdefault(r["user"], {"in": 0, "out": 0, "tokens": 0, "first_slot": r["slot"], "sell_slot": None})
+        if r["is_buy"]:
+            w["in"] += r["quote_amount"]
+            w["tokens"] += r["token_amount"]
+        else:
+            w["out"] += r["quote_amount"]
+            w["tokens"] -= r["token_amount"]
+            if w["sell_slot"] is None:
+                w["sell_slot"] = r["slot"]
+    for w in per.values():
+        held = max(w["tokens"], 0)
+        w["value"] = w["out"] + (curve_sell_lamports(end[0], end[1], held) if held else 0)
+        cost = w["in"] * (1 + WALLET_FEE)
+        w["pnl"] = w["value"] * (1 - WALLET_FEE) - cost
+        w["roi"] = w["pnl"] / cost * 100 if cost else 0.0
+    return {k: v for k, v in per.items() if v["in"] > 0}
+
+
+def wallet_research(conn: sqlite3.Connection, aud_per_usd: float, sizes=(5.0, 50.0),
+                    network: int = 1_005_000) -> str:
+    """Do early wallets' track records persist, and could copying them be profitable?"""
+    toks = conn.execute(
+        "SELECT mint, slot, seen_at FROM pump_tokens WHERE mayhem = 0 AND slot > 0 AND "
+        "(quote_mint IS NULL OR quote_mint = ?) ORDER BY seen_at", (NATIVE_SOL_QUOTE,)).fetchall()
+    trades: dict[str, list] = {}
+    for r in conn.execute("SELECT * FROM pump_early_trades WHERE user IS NOT NULL ORDER BY mint, slot, id"):
+        trades.setdefault(r["mint"], []).append(r)
+    toks = [t for t in toks if t["mint"] in trades]
+    if len(toks) < 200:
+        return ("\nE. COPY-TRADING: not enough data yet "
+                f"({len(toks)} launches with wallet-level trades; needs a few days of recording).")
+    bars = {t.mint: t for t in load_tokens(conn)}
+    half = toks[len(toks) // 2]["seen_at"]
+    stats: list[dict[str, dict]] = [{}, {}]  # per period: wallet -> aggregate
+    results: dict[str, dict[str, dict]] = {}
+    for t in toks:
+        tr = trades[t["mint"]]
+        res = _wallet_token_results(tr, _end_reserves(bars.get(t["mint"]),
+                                                      (tr[-1]["virtual_quote"], tr[-1]["virtual_token"])))
+        results[t["mint"]] = res
+        period = int(t["seen_at"] >= half)
+        for w, r in res.items():
+            a = stats[period].setdefault(w, {"tokens": 0, "pnl": 0, "wins": 0, "rois": []})
+            a["tokens"] += 1
+            a["pnl"] += r["pnl"]
+            a["wins"] += r["pnl"] > 0
+            a["rois"].append(r["roi"])
+    disc, val = stats
+    eligible = {w: a for w, a in disc.items() if a["tokens"] >= MIN_TOKENS_FOR_RECORD}
+    top = sorted(eligible, key=lambda w: eligible[w]["pnl"], reverse=True)[:TOP_WALLETS]
+    out = ["", "E. COPY-TRADING - do early wallets' records persist, and can they be copied?",
+           f"   {len(toks)} launches; discovery wallets with >= {MIN_TOKENS_FOR_RECORD} tokens: {len(eligible)}. "
+           f"Creator wallets excluded. Wallet P&L: first 2 min of trades, remaining tokens sold into the "
+           f"curve at the end of the 10-min window, ~{WALLET_FEE:.2%} fee each way."]
+    if not top:
+        return "\n".join(out + ["   No wallets with enough discovery history."])
+
+    def summary(ws, period):
+        rois = [x for w in ws for x in period.get(w, {}).get("rois", [])]
+        return _fmt(_stats(rois))
+
+    all_val = [w for w in val if val[w]["tokens"] >= 1]
+    out += ["   Per-token ROI of the wallet's own trades:",
+            f"      top {len(top)} wallets, discovery (how they were picked): {summary(top, disc)}",
+            f"      same wallets, validation (does it persist?):          {summary(top, val)}",
+            f"      every wallet, validation (baseline):                  {summary(all_val, val)}",
+            "   Top wallets (discovery): tokens / win rate / P&L SOL  ->  validation tokens / P&L SOL"]
+    for w in top[:10]:
+        d, v = disc[w], val.get(w, {"tokens": 0, "pnl": 0})
+        out.append(f"      {w[:6]}..{w[-4:]}  {d['tokens']:>4} / {d['wins'] / d['tokens']:4.0%} / "
+                   f"{d['pnl'] / 1e9:+8.2f}  ->  {v['tokens']:>4} / {v['pnl'] / 1e9:+8.2f}")
+    busiest = max(eligible.values(), key=lambda a: a["tokens"])["tokens"]
+    out.append(f"   (Most active discovery wallet traded {busiest} tokens - very active wallets are usually bots.)")
+
+    # Copy simulation on the validation half: follow the first top wallet to buy each token.
+    sol_usd = _typical_sol_usd(conn)
+    top_set = set(top)
+    out.append("   Copying top wallets in validation: buy d slots after their first buy, sell d slots after "
+               "their first sell (else at window end). Net % per trade:")
+    for size in sizes:
+        budget = int(size / aud_per_usd / sol_usd * 1e9)
+        row = []
+        for d in COPY_DELAYS:
+            rets = []
+            for t in toks:
+                if t["seen_at"] < half:
+                    continue
+                tr = trades[t["mint"]]
+                leaders = [(r["first_slot"], w) for w, r in results[t["mint"]].items() if w in top_set]
+                if not leaders:
+                    continue
+                first_slot, w = min(leaders)
+                r = _copy_trade(tr, bars.get(t["mint"]), first_slot, results[t["mint"]][w]["sell_slot"], d,
+                                budget, network)
+                if r is not None:
+                    rets.append(r)
+            st = _stats(rets)
+            row.append(f"+{d} slot: " + (f"n={st['n']} mean {st['mean']:+.1f}% win {st['pos']:.0%}"
+                                         + (f" CI[{st['lo']:+.1f},{st['hi']:+.1f}]" if st["n"] > 1 else "")
+                                         if st["n"] else "n=0"))
+        out.append(f"      A${size:g}: " + " | ".join(row))
+    out.append(f"   Fee {network} lamports per transaction. Wallet addresses are public on-chain data; this "
+               "does not identify people, and a wallet that looked skilled can stop, change behaviour, or "
+               "exploit known copiers.")
+    return "\n".join(out)
+
+
+def _copy_trade(tr: list, tok: Token | None, lead_slot: int, lead_sell_slot: int | None, d: int, budget: int,
+                network: int) -> float | None:
+    before = [r for r in tr if r["slot"] < lead_slot + d]
+    if not before:
+        return None
+    vq, vt = before[-1]["virtual_quote"], before[-1]["virtual_token"]
+    fee = max((r["fee_bps"] for r in tr if r["fee_bps"]), default=125)
+    try:
+        buy = simulate_curve_buy(vq, vt, budget, fee, network)
+    except ValueError:
+        return -100.0
+    if buy.tokens_raw <= 0:
+        return None
+    if lead_sell_slot is not None:
+        after = [r for r in tr if r["slot"] <= lead_sell_slot + d]
+        xq, xt = after[-1]["virtual_quote"], after[-1]["virtual_token"]
+    else:
+        xq, xt = _end_reserves(tok, (tr[-1]["virtual_quote"], tr[-1]["virtual_token"]))
     xt -= curve_buy_tokens(xq, xt, buy.curve_in)
     xq += buy.curve_in
     sell = simulate_curve_sell(xq, xt, buy.tokens_raw, fee, network)

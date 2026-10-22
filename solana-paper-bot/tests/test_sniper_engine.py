@@ -203,7 +203,7 @@ def test_bars_written_and_immutable():
 
 
 def test_states_expire_after_track_window():
-    eng, conn, _ = make_sniper(min_buys=999, track_window_seconds=100)
+    eng, conn, _ = make_sniper(min_buys=999, track_window_seconds=100, early_trades_seconds=30)
     pump_until_signal(eng, Curve())
     assert len(eng.states) == 1
     eng.tick(T0 + 101)

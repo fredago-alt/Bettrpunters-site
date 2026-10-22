@@ -158,10 +158,11 @@ class SniperEngine:
             if self.record_market_data and received_at - st.seen_at <= self.s.early_trades_seconds:
                 self.conn.execute(
                     "INSERT INTO pump_early_trades(mint, slot, signature, received_at, is_buy, by_creator, quote_amount, "
-                    "token_amount, virtual_quote, virtual_token, real_token, fee_bps) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "token_amount, virtual_quote, virtual_token, real_token, fee_bps, user) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (ev.mint, slot, signature, received_at, int(ev.is_buy), int(ev.user == st.creator),
                      ev.quote_amount, ev.token_amount, ev.virtual_quote, ev.virtual_token, ev.real_token,
-                     (ev.fee_bps or 0) + (ev.creator_fee_bps or 0) if ev.fee_bps else None))
+                     (ev.fee_bps or 0) + (ev.creator_fee_bps or 0) if ev.fee_bps else None, ev.user))
             self._roll_bar(st, received_at)
             price = spot_price_sol(ev.virtual_quote, ev.virtual_token)
             st.virtual_quote, st.virtual_token, st.real_token = ev.virtual_quote, ev.virtual_token, ev.real_token

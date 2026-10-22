@@ -87,7 +87,7 @@ class SniperSettings:
     # data
     bar_seconds: float = 5.0
     track_window_seconds: float = 600.0
-    early_trades_seconds: float = 30.0  # record every trade (with slot) this long after launch
+    early_trades_seconds: float = 120.0  # record every trade (slot, wallet) this long after launch
     account_refresh_seconds: float = 2.0
     sol_price_refresh_seconds: float = 30.0
     stream_idle_reconnect_seconds: float = 60.0

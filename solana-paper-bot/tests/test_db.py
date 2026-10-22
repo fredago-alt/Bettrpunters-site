@@ -11,9 +11,9 @@ from paperbot.store import insert_observation, record_discovery
 
 def test_migrations_apply_once_and_are_idempotent(tmp_path):
     conn = connect(str(tmp_path / "a.db"))
-    assert migrate(conn) == ["001_initial", "002_sniper", "003_early_trades"]
+    assert migrate(conn) == ["001_initial", "002_sniper", "003_early_trades", "004_trade_wallets"]
     assert migrate(conn) == []
-    assert current_version(conn) == 3
+    assert current_version(conn) == 4
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"observations", "positions", "account", "order_events", "filter_decisions", "tokens",
             "pump_tokens", "pump_bars", "pump_early_trades"} <= tables

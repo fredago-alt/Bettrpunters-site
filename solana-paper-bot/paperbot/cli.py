@@ -130,9 +130,13 @@ def cmd_compare(s, args) -> int:
 
 
 def cmd_research(s, args) -> int:
-    from .research import Costs, launch_ceiling, run_research, slot_ceiling
+    from .research import Costs, launch_ceiling, run_research, slot_ceiling, wallet_research
 
     conn = open_db(args.db or s.db_path)
+    if args.wallets:
+        print("PAPER TRADING ONLY - exploratory research (hypotheses, not proof).")
+        print(wallet_research(conn, s.fx_static_aud_per_usd))
+        return 0
     if args.slots:
         print("PAPER TRADING ONLY - exploratory research (hypotheses, not proof).")
         print(slot_ceiling(conn, s.fx_static_aud_per_usd))
@@ -270,6 +274,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--priority-lamports", type=int, default=100_000)
     sp.add_argument("--launch", action="store_true", help="only the first-buyer launch-ceiling test")
     sp.add_argument("--slots", action="store_true", help="slot-by-slot entry test (needs recorded early trades)")
+    sp.add_argument("--wallets", action="store_true", help="copy-trading test: do early wallets' records persist?")
     sp = sub.add_parser("freeze", help="freeze current strategy rules for out-of-sample testing")
     sp.add_argument("--out", default="frozen_rules.json")
     return p
